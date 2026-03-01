@@ -1,0 +1,374 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0f0f0f;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 20px;
+  background: #1a1a1a;
+  border-bottom: 1px solid #2a2a2a;
+  flex-shrink: 0;
+}
+
+header h1 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.subtitle {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* LEFT PANEL */
+.left-panel {
+  flex: 1;
+  border-right: 1px solid #2a2a2a;
+  background: #111;
+}
+
+.canvas-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0a;
+}
+
+.drop-zone {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #333;
+  color: #555;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  z-index: 10;
+}
+
+.drop-zone.hidden {
+  display: none;
+}
+
+.drop-zone.drag-over {
+  border-color: #4a9eff;
+  color: #4a9eff;
+  background: rgba(74, 158, 255, 0.05);
+}
+
+#imageCanvas,
+#annotationCanvas,
+#highlightCanvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+#annotationCanvas {
+  cursor: crosshair;
+}
+
+#highlightCanvas {
+  pointer-events: none;
+}
+
+.page-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #161616;
+  border-top: 1px solid #2a2a2a;
+  flex-shrink: 0;
+}
+
+.page-nav.hidden {
+  display: none;
+}
+
+.page-nav button {
+  padding: 4px 12px;
+  background: #252525;
+  border: 1px solid #333;
+  border-radius: 5px;
+  color: #ccc;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.page-nav button:hover:not(:disabled) {
+  background: #2e2e2e;
+  color: #fff;
+}
+
+.page-nav button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+#pageInfo {
+  font-size: 0.8rem;
+  color: #777;
+  min-width: 90px;
+  text-align: center;
+}
+
+.annotation-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #1a1a1a;
+  border-top: 1px solid #2a2a2a;
+  flex-shrink: 0;
+}
+
+.tool-btn {
+  padding: 6px 12px;
+  background: #252525;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #ccc;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.tool-btn:hover {
+  background: #2e2e2e;
+  color: #fff;
+}
+
+.tool-btn.active {
+  background: #1e3a5f;
+  border-color: #4a9eff;
+  color: #4a9eff;
+}
+
+/* RIGHT PANEL */
+.right-panel {
+  width: 380px;
+  flex-shrink: 0;
+  background: #131313;
+  padding: 16px;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.right-panel h2 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+/* PROMPT SECTION */
+.prompt-section {
+  flex-shrink: 0;
+}
+
+.preset-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.preset-btn {
+  padding: 6px 12px;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #bbb;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.preset-btn:hover {
+  background: #2a2a2a;
+  color: #fff;
+}
+
+.preset-btn.active {
+  background: #1e3a5f;
+  border-color: #4a9eff;
+  color: #4a9eff;
+}
+
+.custom-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.custom-prompt label {
+  font-size: 0.75rem;
+  color: #555;
+}
+
+.custom-prompt input {
+  padding: 7px 10px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.custom-prompt input:focus {
+  border-color: #4a9eff;
+}
+
+/* RESULT SECTION */
+.result-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 4px;
+}
+
+#resultArea {
+  flex: 1;
+  min-height: 200px;
+  max-height: 380px;
+  padding: 10px;
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  color: #d0d0d0;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
+.result-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.result-actions button {
+  padding: 6px 14px;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #bbb;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.result-actions button:hover {
+  background: #2a2a2a;
+  color: #fff;
+}
+
+/* RUN SECTION */
+.run-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.run-btn {
+  padding: 10px 24px;
+  background: #1a4a8a;
+  border: 1px solid #2a6aaa;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.run-btn:hover {
+  background: #2255a0;
+}
+
+.run-btn:active {
+  transform: scale(0.97);
+}
+
+.run-all-btn {
+  background: #1a3a2a;
+  border-color: #2a7a4a;
+}
+
+.run-all-btn:hover {
+  background: #1f4f35;
+}
+
+.run-all-btn.hidden {
+  display: none;
+}
+
+.run-btn:disabled {
+  background: #1a2a3a;
+  border-color: #2a3a4a;
+  color: #556;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.status-msg {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.status-msg.error {
+  color: #e05050;
+}
+
+.status-msg.running {
+  color: #4a9eff;
+}
+
+.status-msg.done {
+  color: #4caf50;
+}

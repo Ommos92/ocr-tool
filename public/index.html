@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeepSeek OCR</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+
+<body>
+  <header>
+    <h1>DeepSeek OCR</h1>
+    <span class="subtitle">Powered by Ollama</span>
+  </header>
+
+  <main class="layout">
+    <!-- LEFT PANEL: Image + Canvas -->
+    <section class="panel left-panel">
+      <div class="canvas-wrapper" id="canvasWrapper">
+        <div class="drop-zone" id="dropZone">
+          <span>Drop image or PDF here, or click to upload</span>
+          <input type="file" id="fileInput" accept="image/*,application/pdf" hidden />
+        </div>
+        <canvas id="imageCanvas"></canvas>
+        <canvas id="annotationCanvas"></canvas>
+        <canvas id="highlightCanvas"></canvas>
+      </div>
+
+      <div class="page-nav hidden" id="pageNav">
+        <button id="prevPageBtn" disabled>&#8592; Prev</button>
+        <span id="pageInfo">Page 1 of 1</span>
+        <button id="nextPageBtn" disabled>Next &#8594;</button>
+      </div>
+
+      <div class="annotation-toolbar" id="annotationToolbar">
+        <button class="tool-btn active" data-tool="pen" title="Freehand draw">&#9998; Draw</button>
+        <button class="tool-btn" data-tool="rect" title="Draw rectangle">&#9633; Rect</button>
+        <button class="tool-btn" data-tool="text" title="Add text">T Text</button>
+        <button class="tool-btn" data-tool="clear" title="Clear annotations">&#10005; Clear</button>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: Prompt + Result -->
+    <section class="panel right-panel">
+      <div class="prompt-section">
+        <h2>Prompt</h2>
+        <div class="preset-buttons">
+          <button class="preset-btn active" data-prompt="Free OCR.">Free OCR</button>
+          <button class="preset-btn" data-prompt="&lt;|grounding|&gt;Given the layout of the image.">Layout</button>
+          <button class="preset-btn"
+            data-prompt="&lt;|grounding|&gt;Convert the document to markdown.">Markdown</button>
+          <button class="preset-btn" data-prompt="Extract the text in the image.">Extract Text</button>
+          <button class="preset-btn" data-prompt="Parse the figure.">Parse Figure</button>
+        </div>
+        <div class="custom-prompt">
+          <label for="customPrompt">Custom prompt (overrides preset):</label>
+          <input type="text" id="customPrompt" placeholder="Enter custom prompt..." />
+        </div>
+      </div>
+
+      <div class="result-section">
+        <h2>Result</h2>
+        <textarea id="resultArea" readonly placeholder="OCR result will appear here..."></textarea>
+        <div class="result-actions">
+          <button id="copyBtn" title="Copy to clipboard">Copy</button>
+          <button id="clearResultBtn" title="Clear result">Clear</button>
+        </div>
+      </div>
+
+      <div class="run-section">
+        <button id="runBtn" class="run-btn">Run OCR &#9654;</button>
+        <button id="runAllBtn" class="run-btn run-all-btn hidden">All Pages &#9654;&#9654;</button>
+        <span id="statusMsg" class="status-msg"></span>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
