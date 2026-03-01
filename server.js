@@ -1,11 +1,47 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json({ limit: '50mb' })); // added for json payload
+
+app.post('/api/save', (req, res) => {
+  try {
+    const { filename, markdown, annotations } = req.body;
+    if (!filename) return res.status(400).json({ error: 'Filename missing' });
+
+    const outDir = path.join(__dirname, 'output');
+    if (!fs.existsSync(outDir)) {
+      fs.mkdirSync(outDir);
+    }
+
+    const base = path.parse(filename).name;
+    const baseDir = path.join(outDir, base);
+    if (!fs.existsSync(baseDir)) {
+      fs.mkdirSync(baseDir);
+    }
+
+    const mdPath = path.join(baseDir, `${base}.md`);
+    fs.writeFileSync(mdPath, markdown, 'utf8');
+
+    if (annotations && Object.keys(annotations).length > 0) {
+      for (const [page, dataUrl] of Object.entries(annotations)) {
+        if (!dataUrl) continue;
+        const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
+        fs.writeFileSync(path.join(baseDir, `page_${page}_annotation.png`), base64Data, 'base64');
+      }
+    }
+
+    res.json({ success: true, path: baseDir });
+  } catch (err) {
+    console.error("Save error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.post('/api/ocr', upload.single('image'), async (req, res) => {
   if (!req.file) {
