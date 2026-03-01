@@ -21,7 +21,8 @@
   const runBtn = document.getElementById('runBtn');
   const runAllBtn = document.getElementById('runAllBtn');
   const statusMsg = document.getElementById('statusMsg');
-  const toolBtns = document.querySelectorAll('.tool-btn');
+  const toolBtns = document.querySelectorAll('.tool-btn[data-tool]');
+  const newFileBtn = document.getElementById('newFileBtn');
   const pageNav = document.getElementById('pageNav');
   const pageInfo = document.getElementById('pageInfo');
   const prevPageBtn = document.getElementById('prevPageBtn');
@@ -45,6 +46,10 @@
   // ── File Upload (image or PDF) ────────────────────────────────────────────
   dropZone.addEventListener('click', () => fileInput.click());
 
+  if (newFileBtn) {
+    newFileBtn.addEventListener('click', () => fileInput.click());
+  }
+
   fileInput.addEventListener('change', () => {
     if (fileInput.files[0]) loadFile(fileInput.files[0]);
   });
@@ -66,6 +71,10 @@
   });
 
   function loadFile(file) {
+    resultArea.value = '';
+    setStatus('', '');
+    highlightCtx.clearRect(0, 0, highlightCanvas.width, highlightCanvas.height);
+
     if (file.type === 'application/pdf') {
       loadPDF(file);
     } else if (file.type.startsWith('image/')) {
