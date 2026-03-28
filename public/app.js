@@ -42,6 +42,7 @@
   let totalPages = 1;
   let pageAnnotationsData = {};
   let pageOCRResults = {};
+  let pageImagesData = {};
 
   // ── File Upload (image or PDF) ────────────────────────────────────────────
   dropZone.addEventListener('click', () => fileInput.click());
@@ -110,6 +111,8 @@
       imgCtx.drawImage(img, 0, 0, w, h);
       annotCtx.clearRect(0, 0, w, h);
       highlightCtx.clearRect(0, 0, w, h);
+      pageImagesData = {};
+      pageImagesData[1] = imageCanvas.toDataURL();
 
       dropZone.classList.add('hidden');
       URL.revokeObjectURL(url);
@@ -127,6 +130,7 @@
       currentPage = 0; // Temporarily 0 so renderPage doesn't save empty canvas
       pageAnnotationsData = {};
       pageOCRResults = {};
+      pageImagesData = {};
       pageNav.classList.remove('hidden');
       runAllBtn.classList.remove('hidden');
       await renderPage(1);
@@ -165,6 +169,7 @@
     }
 
     await page.render({ canvasContext: imgCtx, viewport }).promise;
+    pageImagesData[pageNum] = imageCanvas.toDataURL();
 
     currentPage = pageNum;
     updatePageNav();
@@ -459,14 +464,165 @@
     }
   });
 
+  function buildDetections(markdownText) {
+    const pageRegex = /\n--- Page (\d+) of (\d+) ---\n/g;
+    const detRegex = /(?:<\|ref\|>(.*?)<\|\/ref\|>\s*)?<\|det\|>\[\[(.*?)\]\]<\|\/det\|>/g;
+
+    const pages = [];
+    let lastIndex = 0;
+    let match;
+    while ((match = pageRegex.exec(markdownText)) !== null) {
+      const pageNum = parseInt(match[1], 10);
+      if (lastIndex !== 0) {
+        const prev = pages[pages.length - 1];
+        prev.text = markdownText.slice(prev.start, match.index);
+      }
+      pages.push({ page: pageNum, start: match.index + match[0].length, text: '' });
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (pages.length === 0) {
+      pages.push({ page: 1, start: 0, text: markdownText });
+    } else {
+      pages[pages.length - 1].text = markdownText.slice(pages[pages.length - 1].start);
+    }
+
+    const detections = [];
+    for (const p of pages) {
+      detRegex.lastIndex = 0;
+      let m;
+      while ((m = detRegex.exec(p.text)) !== null) {
+        const type = (m[1] || 'default').trim() || 'default';
+        const coords = m[2].split(',').map(n => parseInt(n.trim(), 10)).filter(n => !Number.isNaN(n));
+        if (coords.length === 4) {
+          detections.push({ page: p.page, type, bbox: coords });
+        }
+      }
+    }
+
+    return detections;
+  }
+
+  function normalizeBBoxToPixels(bbox, width, height) {
+    const [x1, y1, x2, y2] = bbox;
+    const maxCoord = Math.max(...bbox);
+    if (maxCoord <= 1000) {
+      return [
+        Math.round((x1 / 1000) * width),
+        Math.round((y1 / 1000) * height),
+        Math.round((x2 / 1000) * width),
+        Math.round((y2 / 1000) * height),
+      ];
+    }
+    return bbox;
+  }
+
+  function loadImageFromDataUrl(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load page image for cropping'));
+      img.src = dataUrl;
+    });
+  }
+
+  async function buildDetectionCrops(detections) {
+    const cropTypes = new Set(['table', 'image', 'figure']);
+    const imageCache = new Map();
+    const crops = [];
+
+    for (const det of detections) {
+      const detType = (det.type || '').trim().toLowerCase();
+      if (!cropTypes.has(detType)) continue;
+
+      const pageKey = String(det.page);
+      const pageDataUrl = pageImagesData[pageKey] || pageImagesData[det.page];
+      if (!pageDataUrl) continue;
+
+      if (!imageCache.has(pageKey)) {
+        imageCache.set(pageKey, loadImageFromDataUrl(pageDataUrl));
+      }
+      const img = await imageCache.get(pageKey);
+      const [px1, py1, px2, py2] = normalizeBBoxToPixels(det.bbox, img.width, img.height);
+      const left = Math.max(0, Math.min(px1, px2));
+      const top = Math.max(0, Math.min(py1, py2));
+      const width = Math.max(1, Math.min(img.width - left, Math.abs(px2 - px1)));
+      const height = Math.max(1, Math.min(img.height - top, Math.abs(py2 - py1)));
+
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = width;
+      cropCanvas.height = height;
+      const cropCtx = cropCanvas.getContext('2d');
+      cropCtx.fillStyle = '#ffffff';
+      cropCtx.fillRect(0, 0, width, height);
+      cropCtx.drawImage(img, left, top, width, height, 0, 0, width, height);
+
+      crops.push({
+        page: det.page,
+        type: det.type,
+        bbox: det.bbox,
+        imageDataUrl: cropCanvas.toDataURL('image/png')
+      });
+    }
+
+    return crops;
+  }
+
+  async function buildAnnotationExports() {
+    const pageKeys = new Set([
+      ...Object.keys(pageImagesData),
+      ...Object.keys(pageAnnotationsData),
+    ]);
+    const exports = {};
+
+    for (const pageKey of pageKeys) {
+      const pageDataUrl = pageImagesData[pageKey];
+      if (!pageDataUrl) continue;
+
+      const pageImg = await loadImageFromDataUrl(pageDataUrl);
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = pageImg.width;
+      exportCanvas.height = pageImg.height;
+      const exportCtx = exportCanvas.getContext('2d');
+      exportCtx.fillStyle = '#ffffff';
+      exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+      exportCtx.drawImage(pageImg, 0, 0);
+
+      const annotationDataUrl = pageAnnotationsData[pageKey];
+      if (annotationDataUrl) {
+        const annotationImg = await loadImageFromDataUrl(annotationDataUrl);
+        exportCtx.drawImage(annotationImg, 0, 0);
+      }
+
+      exports[pageKey] = exportCanvas.toDataURL('image/png');
+    }
+
+    return exports;
+  }
+
   saveBtn.addEventListener('click', async () => {
-    if (!resultArea.value) return;
+    if (!resultArea.value && Object.keys(pageAnnotationsData).length === 0) return;
     setStatus('Saving...', 'running');
     try {
+      if (uploadedFile) {
+        if (pdfDoc && currentPage > 0) {
+          pageAnnotationsData[currentPage] = annotCanvas.toDataURL();
+          pageImagesData[currentPage] = imageCanvas.toDataURL();
+        } else if (!pdfDoc) {
+          pageAnnotationsData[1] = annotCanvas.toDataURL();
+          pageImagesData[1] = imageCanvas.toDataURL();
+        }
+      }
+
+      const detections = buildDetections(resultArea.value);
+      const detectionCrops = await buildDetectionCrops(detections);
+      const annotationExports = await buildAnnotationExports();
+
       const payload = {
         filename: uploadedFile ? uploadedFile.name : 'ocr_result',
         markdown: resultArea.value,
-        annotations: pageAnnotationsData // Send base64 data URLs for annotation canvases locally
+        annotations: annotationExports,
+        detectionCrops
       };
 
       const res = await fetch('/api/save', {
