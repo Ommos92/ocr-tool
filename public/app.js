@@ -43,6 +43,7 @@
   let pageAnnotationsData = {};
   let pageOCRResults = {};
   let pageImagesData = {};
+  let pageLinksData = {};
 
   // ── File Upload (image or PDF) ────────────────────────────────────────────
   dropZone.addEventListener('click', () => fileInput.click());
@@ -84,6 +85,7 @@
       pageOCRResults = {};
       pageNav.classList.add('hidden');
       runAllBtn.classList.add('hidden');
+      pageLinksData = {};
       loadImage(file);
     }
   }
@@ -131,6 +133,7 @@
       pageAnnotationsData = {};
       pageOCRResults = {};
       pageImagesData = {};
+      pageLinksData = {};
       pageNav.classList.remove('hidden');
       runAllBtn.classList.remove('hidden');
       await renderPage(1);
@@ -170,6 +173,25 @@
 
     await page.render({ canvasContext: imgCtx, viewport }).promise;
     pageImagesData[pageNum] = imageCanvas.toDataURL();
+    const annotations = await page.getAnnotations();
+    pageLinksData[pageNum] = annotations
+      .filter((annotation) => annotation.subtype === 'Link' && (annotation.url || annotation.unsafeUrl))
+      .map((annotation) => {
+        const rect = viewport.convertToViewportRectangle(annotation.rect);
+        const left = Math.max(0, Math.min(rect[0], rect[2]));
+        const top = Math.max(0, Math.min(rect[1], rect[3]));
+        const right = Math.min(viewport.width, Math.max(rect[0], rect[2]));
+        const bottom = Math.min(viewport.height, Math.max(rect[1], rect[3]));
+        return {
+          url: annotation.url || annotation.unsafeUrl,
+          bbox: [
+            Math.round((left / viewport.width) * 1000),
+            Math.round((top / viewport.height) * 1000),
+            Math.round((right / viewport.width) * 1000),
+            Math.round((bottom / viewport.height) * 1000),
+          ]
+        };
+      });
 
     currentPage = pageNum;
     updatePageNav();
@@ -622,7 +644,8 @@
         filename: uploadedFile ? uploadedFile.name : 'ocr_result',
         markdown: resultArea.value,
         annotations: annotationExports,
-        detectionCrops
+        detectionCrops,
+        pageLinks: pageLinksData
       };
 
       const res = await fetch('/api/save', {

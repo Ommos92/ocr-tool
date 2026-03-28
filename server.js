@@ -25,6 +25,37 @@ function detectionKey(page, type, bbox) {
   return `${page}|${type}|${bbox.join(',')}`;
 }
 
+function linkifyText(content) {
+  return content.replace(/https?:\/\/[^\s<>()]+[^\s<>()]*[^\s<>().,;:!?]/g, (url) => `[${url}](${url})`);
+}
+
+function bboxOverlap(a, b) {
+  const left = Math.max(a[0], b[0]);
+  const top = Math.max(a[1], b[1]);
+  const right = Math.min(a[2], b[2]);
+  const bottom = Math.min(a[3], b[3]);
+  if (right <= left || bottom <= top) return 0;
+  return (right - left) * (bottom - top);
+}
+
+function getBlockLinks(page, bbox, pageLinks) {
+  const links = pageLinks.get(String(page)) || [];
+  const matches = [];
+  for (const link of links) {
+    if (!Array.isArray(link.bbox) || link.bbox.length !== 4 || !link.url) continue;
+    const overlap = bboxOverlap(bbox, link.bbox);
+    const centerX = (link.bbox[0] + link.bbox[2]) / 2;
+    const centerY = (link.bbox[1] + link.bbox[3]) / 2;
+    const containsCenter =
+      centerX >= bbox[0] && centerX <= bbox[2] &&
+      centerY >= bbox[1] && centerY <= bbox[3];
+    if (overlap > 0 || containsCenter) {
+      matches.push(link.url);
+    }
+  }
+  return [...new Set(matches)];
+}
+
 function formatRefLine(page, type, bbox, assetPath) {
   const meta = `ref:${type} | page:${page} | bbox:[${bbox.join(', ')}]`;
   if (assetPath) {
@@ -33,10 +64,17 @@ function formatRefLine(page, type, bbox, assetPath) {
   return `_${meta}_`;
 }
 
-function formatBlock(block, assetMap) {
+function formatLinkLine(urls) {
+  if (urls.length === 0) return '';
+  return `Links: ${urls.map(url => `[${url}](${url})`).join(' | ')}`;
+}
+
+function formatBlock(block, assetMap, pageLinks) {
   const { page, type, bbox, content } = block;
   const key = detectionKey(page, type, bbox);
   const assetPath = assetMap.get(key);
+  const blockLinks = getBlockLinks(page, bbox, pageLinks);
+  const linkLine = formatLinkLine(blockLinks);
   const parts = [];
 
   if (type === 'table' || type === 'image' || type === 'figure') {
@@ -44,23 +82,30 @@ function formatBlock(block, assetMap) {
     if (assetPath) {
       parts.push(`![${type} page ${page}](${assetPath})`);
     }
+    if (linkLine) {
+      parts.push(linkLine);
+    }
     if (content) {
-      parts.push(content);
+      parts.push(linkifyText(content));
     }
     return parts.join('\n');
   }
 
   if (type === 'table_caption' || type === 'image_caption') {
     const refLine = formatRefLine(page, type, bbox, assetPath);
-    if (!content) return refLine;
-    return `${refLine}\n${content}`;
+    const captionContent = content ? linkifyText(content) : '';
+    if (!captionContent && !linkLine) return refLine;
+    return [refLine, linkLine, captionContent].filter(Boolean).join('\n');
   }
 
-  if (!content) return formatRefLine(page, type, bbox, assetPath);
-  return content;
+  if (!content) {
+    const refLine = formatRefLine(page, type, bbox, assetPath);
+    return [refLine, linkLine].filter(Boolean).join('\n');
+  }
+  return [linkifyText(content), linkLine].filter(Boolean).join('\n');
 }
 
-function formatMarkdown(markdown, assetMap) {
+function formatMarkdown(markdown, assetMap, pageLinks) {
   const normalized = markdown.replace(/\r\n/g, '\n');
   const lines = normalized.split('\n');
   const output = [];
@@ -102,7 +147,7 @@ function formatMarkdown(markdown, assetMap) {
     }
 
     const content = contentLines.join('\n').trim();
-    output.push(formatBlock({ page: currentPage, type, bbox, content }, assetMap));
+    output.push(formatBlock({ page: currentPage, type, bbox, content }, assetMap, pageLinks));
   }
 
   return output
@@ -116,7 +161,7 @@ app.use(express.json({ limit: '50mb' })); // added for json payload
 
 app.post('/api/save', async (req, res) => {
   try {
-    const { filename, markdown, annotations, detectionCrops } = req.body;
+    const { filename, markdown, annotations, detectionCrops, pageLinks } = req.body;
     if (!filename) return res.status(400).json({ error: 'Filename missing' });
 
     const outDir = path.join(__dirname, 'output');
@@ -139,6 +184,7 @@ app.post('/api/save', async (req, res) => {
     }
 
     const assetMap = new Map();
+    const pageLinksMap = new Map(Object.entries(pageLinks || {}));
     if (Array.isArray(detectionCrops) && detectionCrops.length > 0) {
       const pageTypeCounts = new Map();
       for (const det of detectionCrops) {
@@ -168,7 +214,7 @@ app.post('/api/save', async (req, res) => {
       }
     }
 
-    const markdownOut = formatMarkdown(markdown, assetMap);
+    const markdownOut = formatMarkdown(markdown, assetMap, pageLinksMap);
     fs.writeFileSync(mdPath, markdownOut, 'utf8');
     res.json({ success: true, path: baseDir });
   } catch (err) {
