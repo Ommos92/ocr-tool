@@ -25,15 +25,22 @@ function detectionKey(page, type, bbox) {
   return `${page}|${type}|${bbox.join(',')}`;
 }
 
+function formatRefLine(page, type, bbox, assetPath) {
+  const meta = `ref:${type} | page:${page} | bbox:[${bbox.join(', ')}]`;
+  if (assetPath) {
+    return `[${meta}](${assetPath})`;
+  }
+  return `_${meta}_`;
+}
+
 function formatBlock(block, assetMap) {
   const { page, type, bbox, content } = block;
   const key = detectionKey(page, type, bbox);
   const assetPath = assetMap.get(key);
-  const metaLine = `<!-- ref:${type} page:${page} bbox:[${bbox.join(', ')}] -->`;
   const parts = [];
 
   if (type === 'table' || type === 'image' || type === 'figure') {
-    parts.push(metaLine);
+    parts.push(formatRefLine(page, type, bbox, assetPath));
     if (assetPath) {
       parts.push(`![${type} page ${page}](${assetPath})`);
     }
@@ -44,11 +51,12 @@ function formatBlock(block, assetMap) {
   }
 
   if (type === 'table_caption' || type === 'image_caption') {
-    if (!content) return metaLine;
-    return `${metaLine}\n${content}`;
+    const refLine = formatRefLine(page, type, bbox, assetPath);
+    if (!content) return refLine;
+    return `${refLine}\n${content}`;
   }
 
-  if (!content) return metaLine;
+  if (!content) return formatRefLine(page, type, bbox, assetPath);
   return content;
 }
 
